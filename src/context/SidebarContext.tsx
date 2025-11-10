@@ -1,90 +1,61 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
 type SidebarContextType = {
   isExpanded: boolean;
+  setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   isMobileOpen: boolean;
+  setIsMobileOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isHovered: boolean;
-  activeItem: string | null;
-  openSubmenu: string | null;
-  toggleSidebar: () => void;
-  toggleMobileSidebar: () => void;
-  setIsHovered: (isHovered: boolean) => void;
-  setActiveItem: (item: string | null) => void;
-  toggleSubmenu: (item: string) => void;
+  setIsHovered: (v: boolean) => void;
+  toggleDesktop: () => void; // <— réduit/étend la sidebar (desktop)
+  toggleMobile: () => void; // <— ouvre/ferme la sidebar (mobile)
 };
 
-const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+const Ctx = createContext<SidebarContextType>({
+  isExpanded: false,
+  setIsExpanded: () => {},
+  isMobileOpen: false,
+  setIsMobileOpen: () => {},
+  isHovered: false,
+  setIsHovered: () => {},
+  toggleDesktop: () => {},
+  toggleMobile: () => {},
+});
 
-export const useSidebar = () => {
-  const context = useContext(SidebarContext);
-  if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider");
-  }
-  return context;
-};
-
-export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  // Desktop: menu réduit par défaut
+  const [isExpanded, setIsExpanded] = useState(false);
+  // Mobile: hors écran par défaut
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [activeItem, setActiveItem] = useState<string | null>(null);
-  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
-  const pathname = usePathname();
-  // Close sidebar on route change (for mobile)
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setIsMobileOpen(false);
-      }
-    };
+  const toggleDesktop = useCallback(() => setIsExpanded((v) => !v), []);
+  const toggleMobile = useCallback(() => setIsMobileOpen((v) => !v), []);
 
-    handleResize();
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-
-  const toggleSidebar = () => {
-    setIsExpanded((prev) => !prev);
-  };
-
-  const toggleMobileSidebar = () => {
-    setIsMobileOpen((prev) => !prev);
-  };
-
-  const toggleSubmenu = (item: string) => {
-    setOpenSubmenu((prev) => (prev === item ? null : item));
-  };
-
-  return (
-    <SidebarContext.Provider
-      value={{
-        isExpanded: isMobile ? false : isExpanded,
-        isMobileOpen,
-        isHovered,
-        activeItem,
-        openSubmenu,
-        toggleSidebar,
-        toggleMobileSidebar,
-        setIsHovered,
-        setActiveItem,
-        toggleSubmenu,
-      }}
-    >
-      {children}
-    </SidebarContext.Provider>
+  const value = useMemo(
+    () => ({
+      isExpanded,
+      setIsExpanded,
+      isMobileOpen,
+      setIsMobileOpen,
+      isHovered,
+      setIsHovered,
+      toggleDesktop,
+      toggleMobile,
+    }),
+    [isExpanded, isMobileOpen, isHovered, toggleDesktop, toggleMobile]
   );
-};
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useSidebar() {
+  return useContext(Ctx);
+}
