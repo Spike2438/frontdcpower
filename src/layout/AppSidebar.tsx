@@ -1,4 +1,5 @@
 "use client";
+
 import React, {
   useEffect,
   useRef,
@@ -30,8 +31,6 @@ import {
   UserCircleIcon,
 } from "../icons/index";
 
-import { useAuth } from "@/context/AuthContext";
-
 type NavItem = {
   name: string;
   icon: React.ReactNode;
@@ -40,14 +39,18 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
+/* =========================
+ * DÉFINITION DES MENUS
+ * ========================= */
+
 const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
-    name: "Dashboard",
+    name: "DataCenters",
     subItems: [
-      { name: "Ecommerce", path: "/" },
-      { name: "Analytics", path: "/analytics" },
-      { name: "Marketing", path: "/marketing" },
+      { name: "Dashboard", path: "/dashboard" },
+      { name: "Map", path: "/" },
+      { name: "Power", path: "/power" },
       { name: "CRM", path: "/crm" },
       { name: "Stocks", path: "/stocks" },
       { name: "SaaS", path: "/saas", new: true },
@@ -97,6 +100,12 @@ const navItems: NavItem[] = [
       { name: "Form Elements", path: "/form-elements", pro: false },
       { name: "Form Layout", path: "/form-layout", pro: false },
     ],
+  },
+  /* ===== Wiki (NOUVELLE SECTION) ===== */
+  {
+    name: "Wiki",
+    icon: <PageIcon />,
+    subItems: [{ name: "Home", path: "/wiki" }],
   },
   {
     name: "Tables",
@@ -197,69 +206,147 @@ const supportItems: NavItem[] = [
   },
 ];
 
-// Garder visibles ces pages quand on n'est pas connecté
-const PUBLIC_PATHS = new Set<string>([
-  // Dashboard
-  "/",
-  "/analytics",
+/* =========================
+ * VISIBILITÉ (on n'affiche
+ * que DataCenters, Forms, Wiki)
+ * ========================= */
 
-  // E-commerce -> garder le groupe visible en guest
-  "/products-list",
-  "/transactions",
+const MENU_VISIBILITY = {
+  groups: {
+    main: true,
+    support: false, // masque tout le groupe "Support"
+    others: true,
+  },
+  hidePaths: new Set<string>([
+    // AI Assistant
+    "/text-generator",
+    "/image-generator",
+    "/code-generator",
+    "/video-generator",
 
-  // (optionnel) autres icônes top-level à garder visibles
-  "/calendar",
-  "/profile",
+    // E-commerce
+    "/products-list",
+    "/add-product",
+    "/billing",
+    "/invoices",
+    "/single-invoice",
+    "/create-invoice",
+    "/transactions",
+    "/single-transaction",
 
-  // Pages utiles + Auth
-  "/faq",
-  "/error-404",
-  "/coming-soon",
-  "/maintenance",
-  "/signin",
-  "/signup",
-  "/reset-password",
-  "/two-step-verification",
-]);
+    // Top-level divers
+    "/calendar",
+    "/profile",
 
-function filterByAuth(items: NavItem[], isAuthed: boolean): NavItem[] {
+    // Task
+    "/task-list",
+    "/task-kanban",
+
+    // Tables
+    "/basic-tables",
+    "/data-tables",
+
+    // Pages
+    "/file-manager",
+    "/pricing-tables",
+    "/faq",
+    "/api-keys",
+    "/integrations",
+    "/blank",
+    "/error-404",
+    "/error-500",
+    "/error-503",
+    "/coming-soon",
+    "/maintenance",
+    "/success",
+
+    // Others → Charts
+    "/line-chart",
+    "/bar-chart",
+    "/pie-chart",
+
+    // Others → UI Elements
+    "/alerts",
+    "/avatars",
+    "/badge",
+    "/breadcrumb",
+    "/buttons",
+    "/buttons-group",
+    "/cards",
+    "/carousel",
+    "/dropdowns",
+    "/images",
+    "/links",
+    "/list",
+    "/modals",
+    "/notifications",
+    "/pagination",
+    "/popovers",
+    "/progress-bar",
+    "/ribbons",
+    "/spinners",
+    "/tabs",
+    "/tooltips",
+    "/videos",
+
+    // Others → Authentication (masqué totalement)
+    "/signin",
+    "/signup",
+    "/reset-password",
+    "/two-step-verification",
+
+    // Support (sécurité supplémentaire même si groupe hidden)
+    "/chat",
+    "/support-tickets",
+    "/support-ticket-reply",
+    "/inbox",
+    "/inbox-details",
+  ]),
+  // Garde null (pas de whitelist stricte)
+  showOnlyPaths: null as null | Set<string>,
+};
+
+function isAllowedPath(path: string): boolean {
+  if (MENU_VISIBILITY.showOnlyPaths) {
+    return MENU_VISIBILITY.showOnlyPaths.has(path);
+  }
+  return !MENU_VISIBILITY.hidePaths.has(path);
+}
+
+function filterByVisibility(
+  items: NavItem[],
+  group: "main" | "support" | "others"
+): NavItem[] {
+  if (!MENU_VISIBILITY.groups[group]) return [];
   return items
     .map((it) => {
-      if (it.subItems && it.subItems.length) {
-        const sub = isAuthed
-          ? it.subItems
-          : it.subItems.filter((s) => PUBLIC_PATHS.has(s.path));
-        if (!sub.length) return null;
-        return { ...it, subItems: sub };
+      if (it.subItems?.length) {
+        const sub = it.subItems.filter((s) => isAllowedPath(s.path));
+        return sub.length ? { ...it, subItems: sub } : null;
       }
-      if (!it.path) return null;
-      if (!isAuthed && !PUBLIC_PATHS.has(it.path)) return null;
-      return it;
+      if (it.path && isAllowedPath(it.path)) return it;
+      return null;
     })
     .filter(Boolean) as NavItem[];
 }
 
+/* =========================
+ * COMPOSANT SIDEBAR
+ * ========================= */
+
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
-  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
 
-  const mainMenu = useMemo(
-    () => filterByAuth(navItems, isAuthenticated),
-    [isAuthenticated]
-  );
+  const mainMenu = useMemo(() => filterByVisibility(navItems, "main"), []);
   const supportMenu = useMemo(
-    () => filterByAuth(supportItems, isAuthenticated),
-    [isAuthenticated]
+    () => filterByVisibility(supportItems, "support"),
+    []
   );
-  const othersMenu = useMemo(() => {
-    const authGroup = othersItems.find((g) => g.name === "Authentication");
-    const rest = filterByAuth(
-      othersItems.filter((g) => g.name !== "Authentication"),
-      isAuthenticated
-    );
-    return authGroup ? [...rest, authGroup] : rest;
-  }, [isAuthenticated]);
+  const othersMenu = useMemo(
+    () => filterByVisibility(othersItems, "others"),
+    []
+  );
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "support" | "others";
@@ -511,54 +598,65 @@ const AppSidebar: React.FC = () => {
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">
           <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "xl:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(mainMenu, "main")}
-            </div>
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "xl:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Support"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(supportMenu, "support")}
-            </div>
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "xl:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersMenu, "others")}
-            </div>
+            {/* MAIN */}
+            {MENU_VISIBILITY.groups.main && mainMenu.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "xl:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Menu"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(mainMenu, "main")}
+              </div>
+            )}
+
+            {/* SUPPORT (masqué) */}
+            {MENU_VISIBILITY.groups.support && supportMenu.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "xl:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Support"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(supportMenu, "support")}
+              </div>
+            )}
+
+            {/* OTHERS */}
+            {MENU_VISIBILITY.groups.others && othersMenu.length > 0 && (
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-5 text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "xl:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Others"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(othersMenu, "others")}
+              </div>
+            )}
           </div>
         </nav>
       </div>

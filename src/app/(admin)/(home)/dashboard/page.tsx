@@ -1,8 +1,10 @@
 import FeaturedCampaign from "@/components/marketing/FeaturedCampaign";
 import ImpressionChart from "@/components/marketing/ImpressionChart";
-import MarketingMetricsCards from "@/components/marketing/MarketingMetricsCards";
+
 import TrafficSource from "@/components/marketing/TrafficSource";
-import TrafficStats from "@/components/marketing/TrafficStats";
+import DashboardMapCard from "@/components/datacenter/DashboardMapCard";
+import DatacenterMetricsCards from "@/components/datacenter/DatacenterMetricsCards";
+
 import { Metadata } from "next";
 import React from "react";
 
@@ -17,14 +19,14 @@ export default function Marketing() {
   return (
     <div className="grid grid-cols-12 gap-4 md:gap-6">
       <div className="col-span-12">
-        <MarketingMetricsCards />
+        <DatacenterMetricsCards />
       </div>
       <div className="col-span-12 space-y-6 xl:col-span-8">
         <ImpressionChart />
         <FeaturedCampaign />
       </div>
       <div className="col-span-12 space-y-6 xl:col-span-4">
-        <TrafficStats />
+        <DashboardMapCard />
         <TrafficSource />
       </div>
     </div>
