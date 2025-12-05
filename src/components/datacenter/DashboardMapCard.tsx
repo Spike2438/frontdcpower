@@ -14,13 +14,11 @@ export default function DashboardMapCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Style identique à la page Map
   const MT = process.env.NEXT_PUBLIC_MAPTILER_KEY;
   const styleUrl = MT
     ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${MT}`
     : "https://tiles.versatiles.org/assets/styles/colorful/style.json";
 
-  // Récupérer les points depuis /api/dashboard/datacenters/map
   useEffect(() => {
     async function fetchMarkers() {
       try {
@@ -49,7 +47,6 @@ export default function DashboardMapCard() {
             name: it.name,
             lng: it.lng,
             lat: it.lat,
-            logoUrl: undefined, // tu pourras brancher un logo plus tard
           }));
 
         setMarkers(mapped);
@@ -93,9 +90,8 @@ export default function DashboardMapCard() {
         </button>
       </div>
 
-      {/* Map interactive — même style que la page Map */}
+      {/* Map */}
       <div className="mt-2 rounded-xl overflow-hidden relative">
-        {/* petit overlay de chargement / erreur */}
         {loading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-black/40 text-xs text-gray-600 dark:text-gray-200">
             Chargement des datacenters...
@@ -109,11 +105,14 @@ export default function DashboardMapCard() {
 
         <MapLibreWidget
           height={300}
-          center={[2.35, 48.85]} // centre par défaut (tu pourras le calculer dynamiquement plus tard)
-          zoom={3}
+          center={[2.35, 48.85]} // fallback si géoloc non disponible
+          zoom={4}
           markers={markers}
           lightStyleUrl={styleUrl}
-          darkStyleUrl={styleUrl} // 👈 même style en clair & sombre
+          darkStyleUrl={styleUrl}
+          autoCenterFromBrowser={true} // 👈 géoloc activée
+          autoCenterZoom={7} // 👈 zoom sur ta région
+          minMarkerZoom={3} // points visibles dès qu'on est un peu zoomé
         />
       </div>
     </div>

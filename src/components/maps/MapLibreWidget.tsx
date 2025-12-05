@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import maplibregl, { Map } from "maplibre-gl";
+import maplibregl, {
+  Map,
+  MapLayerMouseEvent,
+  GeoJSONSource,
+} from "maplibre-gl";
+import type { FeatureCollection, Feature, Point } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export type MapMarker = {
@@ -9,6 +14,11 @@ export type MapMarker = {
   name: string;
   lng: number;
   lat: number;
+};
+
+type MarkerProperties = {
+  id: string;
+  name: string;
 };
 
 type Props = {
@@ -31,6 +41,9 @@ type Props = {
   minMarkerZoom?: number;
 };
 
+const SOURCE_ID = "dc-points";
+const LAYER_ID = "dc-points-layer";
+
 export default function MapLibreWidget({
   lightStyleUrl = `https://api.maptiler.com/maps/streets-v2/style.json?key=${
     process.env.NEXT_PUBLIC_MAPTILER_KEY ?? ""
@@ -52,9 +65,10 @@ export default function MapLibreWidget({
   const mapRef = useRef<Map | null>(null);
   const styleRef = useRef<string>("");
 
-  const markerRefs = useRef<maplibregl.Marker[]>([]);
+  const sourceReadyRef = useRef(false);
+  const markersRef = useRef<MapMarker[]>([]);
 
-  // on fige les valeurs initiales pour éviter les problèmes de re-rendu
+  // valeurs initiales figées pour éviter de recréer la carte
   const initialCenterRef = useRef<[number, number]>(center);
   const initialZoomRef = useRef<number>(zoom);
   const initialMinMarkerZoomRef = useRef<number>(minMarkerZoom);
@@ -64,6 +78,40 @@ export default function MapLibreWidget({
     const isDark = () => document.documentElement.classList.contains("dark");
     return () => (isDark() ? darkStyleUrl : lightStyleUrl);
   }, [styleUrlOverride, lightStyleUrl, darkStyleUrl]);
+
+  /** Helper pour pousser les markers dans la source GeoJSON */
+  const updateSourceWithMarkers = () => {
+    const map = mapRef.current;
+    if (!map || !sourceReadyRef.current) return;
+
+    const src = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
+    if (!src) return;
+
+    const features: Feature<Point, MarkerProperties>[] = markersRef.current.map(
+      (m) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [m.lng, m.lat],
+        },
+        properties: {
+          id: m.id,
+          name: m.name,
+        },
+      })
+    );
+
+    const geojson: FeatureCollection<Point, MarkerProperties> = {
+      type: "FeatureCollection",
+      features,
+    };
+
+    src.setData(geojson);
+
+    const minZoom = initialMinMarkerZoomRef.current;
+    const visible = map.getZoom() >= minZoom;
+    map.setPaintProperty(LAYER_ID, "circle-opacity", visible ? 1 : 0);
+  };
 
   /** Création de la carte : une seule fois */
   useEffect(() => {
@@ -88,7 +136,7 @@ export default function MapLibreWidget({
       "bottom-left"
     );
 
-    // Switch light/dark
+    // Switch light/dark (on recharge le style)
     const html = document.documentElement;
     const obs = new MutationObserver(() => {
       const next = pickStyle();
@@ -103,43 +151,104 @@ export default function MapLibreWidget({
     const onResize = () => map.resize();
     window.addEventListener("resize", onResize);
 
-    // Afficher / cacher les marqueurs selon le zoom
-    const handleZoom = () => {
-      const minZoom = initialMinMarkerZoomRef.current;
-      const visible = map.getZoom() >= minZoom;
-      markerRefs.current.forEach((m) => {
-        const el = m.getElement();
-        el.style.opacity = visible ? "1" : "0";
+    const onLoad = () => {
+      // Source GeoJSON
+      if (!map.getSource(SOURCE_ID)) {
+        const empty: FeatureCollection<Point, MarkerProperties> = {
+          type: "FeatureCollection",
+          features: [],
+        };
+
+        map.addSource(SOURCE_ID, {
+          type: "geojson",
+          data: empty,
+        });
+      }
+
+      // Layer circle
+      if (!map.getLayer(LAYER_ID)) {
+        map.addLayer({
+          id: LAYER_ID,
+          type: "circle",
+          source: SOURCE_ID,
+          paint: {
+            "circle-radius": 4,
+            "circle-color": "#3b82f6",
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#ffffff",
+            "circle-opacity": 0,
+          },
+        });
+      }
+
+      // Popups au clic
+      map.on("click", LAYER_ID, (e: MapLayerMouseEvent) => {
+        const feature = e.features && e.features[0];
+        if (!feature || feature.geometry.type !== "Point") return;
+
+        const geometry = feature.geometry;
+        const coords = geometry.coordinates as [number, number];
+
+        const props = feature.properties as MarkerProperties | null;
+        const name = props?.name ?? "";
+
+        new maplibregl.Popup({ offset: 12 })
+          .setLngLat(coords)
+          .setText(name)
+          .addTo(map);
       });
+
+      // curseur pointer sur les points
+      map.on("mouseenter", LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
+
+      // Afficher / cacher selon le zoom
+      const handleZoom = () => {
+        const minZoom = initialMinMarkerZoomRef.current;
+        const visible = map.getZoom() >= minZoom;
+        map.setPaintProperty(LAYER_ID, "circle-opacity", visible ? 1 : 0);
+      };
+      map.on("zoom", handleZoom);
+      handleZoom();
+
+      sourceReadyRef.current = true;
+      // On pousse les markers actuels (si déjà reçus du parent)
+      updateSourceWithMarkers();
     };
-    map.on("zoom", handleZoom);
+
+    map.on("load", onLoad);
 
     mapRef.current = map;
-    handleZoom(); // état initial
 
     return () => {
       window.removeEventListener("resize", onResize);
       obs.disconnect();
-      markerRefs.current.forEach((m) => m.remove());
-      markerRefs.current = [];
-      map.off("zoom", handleZoom);
+      if (map.getLayer(LAYER_ID)) {
+        map.removeLayer(LAYER_ID);
+      }
+      if (map.getSource(SOURCE_ID)) {
+        map.removeSource(SOURCE_ID);
+      }
       map.remove();
       mapRef.current = null;
+      sourceReadyRef.current = false;
     };
-    // ⬇️ on ne dépend QUE de pickStyle, donc la carte est créée une seule fois
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickStyle]);
 
-  /** Géoloc : centrer sur la position du navigateur (si possible) */
+  /** Géoloc : centrer sur la position du navigateur */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !autoCenterFromBrowser) return;
     if (typeof window === "undefined") return;
 
-    // HTTPS ou localhost obligatoire pour la géoloc
     if (!window.isSecureContext) {
       console.warn(
-        "[MapLibreWidget] Geolocation bloquée : il faut utiliser HTTPS ou http://localhost"
+        "[MapLibreWidget] Geolocation bloquée : utiliser HTTPS ou http://localhost"
       );
       return;
     }
@@ -168,44 +277,11 @@ export default function MapLibreWidget({
     );
   }, [autoCenterFromBrowser, autoCenterZoom]);
 
-  /** Création / mise à jour des marqueurs */
+  /** Mise à jour des points : on ne touche qu'à la source GeoJSON */
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // supprimer les anciens
-    markerRefs.current.forEach((m) => m.remove());
-    markerRefs.current = [];
-
-    markers.forEach((d) => {
-      const el = document.createElement("div");
-      el.className =
-        "rounded-full shadow-md flex items-center justify-center overflow-hidden";
-      el.style.width = "22px";
-      el.style.height = "22px";
-      el.style.border = "1px solid #ffffffAA";
-      el.style.background = "#3b82f6";
-      el.style.boxShadow = "0 0 6px rgba(15, 23, 42, 0.4)";
-      el.style.color = "white";
-      el.style.fontSize = "11px";
-      el.style.fontWeight = "700";
-      el.textContent = d.name.slice(0, 1).toUpperCase();
-
-      const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([d.lng, d.lat])
-        .setPopup(new maplibregl.Popup({ offset: 12 }).setText(d.name))
-        .addTo(map);
-
-      markerRefs.current.push(marker);
-    });
-
-    // appliquer la logique visible/masqué selon le zoom actuel
-    const minZoom = initialMinMarkerZoomRef.current;
-    const visible = map.getZoom() >= minZoom;
-    markerRefs.current.forEach((m) => {
-      const el = m.getElement();
-      el.style.opacity = visible ? "1" : "0";
-    });
+    markersRef.current = markers;
+    updateSourceWithMarkers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers]);
 
   const heightStyle =
