@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DollarLineIcon, GroupIcon, ShootingStarIcon } from "../../icons";
+import { Building2, Server, Cloud, Cpu } from "lucide-react"; // ⬅️ nouvelles icônes
 
 type MetricsResponse = {
   total: number;
@@ -16,7 +16,6 @@ export default function DatacenterMetricsCards() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 1) Appel de l'API au montage
   useEffect(() => {
     async function fetchMetrics() {
       try {
@@ -39,7 +38,6 @@ export default function DatacenterMetricsCards() {
     fetchMetrics();
   }, []);
 
-  // 2) On lit les valeurs renvoyées par l'API
   const enterpriseCount = metrics?.byType["enterprise"] ?? 0;
   const colocationCount = metrics?.byType["colocation"] ?? 0;
   const cloudCount = metrics?.byType["cloud"] ?? 0;
@@ -52,34 +50,42 @@ export default function DatacenterMetricsCards() {
       value: enterpriseCount,
       change: "+4.2%",
       trend: "up" as const,
-      Icon: ShootingStarIcon,
+      Icon: Building2, // 🏢
+      iconBg:
+        "bg-indigo-500/10 text-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300",
     },
     {
       label: "Colocation data center",
       value: colocationCount,
       change: "+1.8%",
       trend: "up" as const,
-      Icon: GroupIcon,
+      Icon: Server, // 🖥️
+      iconBg:
+        "bg-emerald-500/10 text-emerald-400 dark:bg-emerald-500/15 dark:text-emerald-300",
     },
     {
       label: "Cloud data center",
       value: cloudCount,
       change: "+6.3%",
       trend: "up" as const,
-      Icon: DollarLineIcon,
+      Icon: Cloud, // ☁️
+      iconBg:
+        "bg-sky-500/10 text-sky-400 dark:bg-sky-500/15 dark:text-sky-300",
     },
     {
       label: "Crypto mining farm",
       value: cryptoCount,
       change: "-2.4%",
       trend: "down" as const,
-      Icon: ShootingStarIcon,
+      Icon: Cpu, // 💾
+      iconBg:
+        "bg-amber-500/10 text-amber-400 dark:bg-amber-500/15 dark:text-amber-300",
     },
   ];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4">
-      {cards.map(({ label, value, change, trend, Icon }) => {
+      {cards.map(({ label, value, change, trend, Icon, iconBg }) => {
         const badgeBase =
           "flex items-center gap-1 rounded-full px-2 py-0.5 text-theme-xs font-medium";
         const badgeUp =
@@ -92,8 +98,13 @@ export default function DatacenterMetricsCards() {
             key={label}
             className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
           >
-            <div className="mb-6 flex h-[52px] w-[52px] items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-white/[0.90]">
-              <Icon />
+            <div
+              className={
+                "mb-6 flex h-[52px] w-[52px] items-center justify-center rounded-xl " +
+                iconBg
+              }
+            >
+              <Icon className="h-6 w-6" />
             </div>
 
             <p className="text-gray-500 text-theme-sm dark:text-gray-400">

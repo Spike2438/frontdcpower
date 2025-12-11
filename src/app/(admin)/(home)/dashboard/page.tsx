@@ -1,5 +1,5 @@
 import FeaturedCampaign from "@/components/marketing/FeaturedCampaign";
-import ImpressionChart from "@/components/marketing/ImpressionChart";
+import DatacenterPowerChart from "@/components/datacenter/DatacenterPowerChart";
 
 import TrafficSource from "@/components/marketing/TrafficSource";
 import DashboardMapCard from "@/components/datacenter/DashboardMapCard";
@@ -22,7 +22,7 @@ export default function Marketing() {
         <DatacenterMetricsCards />
       </div>
       <div className="col-span-12 space-y-6 xl:col-span-8">
-        <ImpressionChart />
+        <DatacenterPowerChart />
         <FeaturedCampaign />
       </div>
       <div className="col-span-12 space-y-6 xl:col-span-4">
